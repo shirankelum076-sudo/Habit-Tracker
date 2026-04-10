@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atomic Habit Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+    color: #2d3748;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  .container { max-width: 900px; margin: 0 auto; }
+  h1 {
+    text-align: center;
+    font-family: 'Brush Script MT', cursive;
+    font-size: 42px;
+    margin-bottom: 8px;
+    color: #1a202c;
+  }
+  .subtitle { text-align: center; color: #718096; margin-bottom: 24px; font-size: 14px; }
+  .card {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .identity { display: flex; flex-direction: column; gap: 6px; }
+  .identity label { font-size: 12px; font-weight: 600; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
+  .identity input {
+    border: none; border-bottom: 2px solid #e2e8f0; padding: 8px 0; font-size: 16px;
+    font-style: italic; outline: none; background: transparent;
+  }
+  .identity input:focus { border-color: #4299e1; }
+  .habits-list { display: flex; flex-direction: column; gap: 10px; }
+  .habit-row {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    gap: 10px;
+    align-items: center;
+  }
+  .habit-num {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: white;
+  }
+  .habit-input {
+    border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px;
+    font-size: 14px; outline: none; width: 100%;
+  }
+  .habit-input:focus { border-color: #4299e1; }
+  .streak { font-size: 12px; color: #718096; min-width: 60px; text-align: right; }
+  .streak strong { color: #2d3748; font-size: 16px; }
+
+  .tracker-wrap { display: flex; justify-content: center; padding: 10px 0; }
+  svg { max-width: 100%; height: auto; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 12px; font-size: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 14px; height: 14px; border-radius: 3px; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; }
+  .stat-val { font-size: 24px; font-weight: 700; color: #2d3748; }
+  .stat-lbl { font-size: 11px; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .laws { font-size: 13px; color: #4a5568; line-height: 1.6; }
+  .laws h3 { font-size: 14px; margin-bottom: 8px; color: #2d3748; }
+  .laws ul { list-style: none; }
+  .laws li { padding: 4px 0; }
+
+  .reset-btn {
+    background: #fee; color: #c53030; border: none; padding: 8px 16px;
+    border-radius: 8px; font-size: 12px; cursor: pointer; margin-top: 12px;
+  }
+  .reset-btn:hover { background: #fed7d7; }
+
+  .cell { cursor: pointer; transition: opacity 0.15s; }
+  .cell:hover { opacity: 0.7; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Habit Tracker</h1>
+  <p class="subtitle">31 days · Built on Atomic Habits principles</p>
+
+  <div class="card identity">
+    <label>Identity statement</label>
+    <input id="identity" type="text" placeholder="I am someone who…">
+  </div>
+
+  <div class="card">
+    <label style="font-size:12px;font-weight:600;color:#718096;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:10px;">Your habits (tap a cell to mark complete)</label>
+    <div class="habits-list" id="habitsList"></div>
+  </div>
+
+  <div class="card">
+    <div class="tracker-wrap">
+      <svg id="tracker" viewBox="0 0 600 600"></svg>
+    </div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="card stats">
+    <div><div class="stat-val" id="totalDone">0</div><div class="stat-lbl">Completions</div></div>
+    <div><div class="stat-val" id="bestStreak">0</div><div class="stat-lbl">Best streak</div></div>
+    <div><div class="stat-val" id="rate">0%</div><div class="stat-lbl">Consistency</div></div>
+  </div>
+
+  <div class="card laws">
+    <h3>The Four Laws (cue → craving → response → reward)</h3>
+    <ul>
+      <li><strong>1. Make it obvious</strong> — design your environment so the cue is unmissable</li>
+      <li><strong>2. Make it attractive</strong> — pair it with something you enjoy</li>
+      <li><strong>3. Make it easy</strong> — shrink it to under 2 minutes to start</li>
+      <li><strong>4. Make it satisfying</strong> — mark this tracker the moment you finish</li>
+    </ul>
+    <button class="reset-btn" onclick="resetAll()">Reset all data</button>
+  </div>
+</div>
+
+<script>
+const COLORS = ['#f56565', '#ed8936', '#ecc94b', '#48bb78', '#4299e1', '#9f7aea'];
+const NUM_HABITS = 6;
+const DAYS = 31;
+let habits = [];
+let completions = {}; // key: "habitIdx-day" -> true
+
+async function load() {
+  try {
+    const r = await window.storage.get('habit-tracker-data');
+    if (r) {
+      const d = JSON.parse(r.value);
+      habits = d.habits || [];
+      completions = d.completions || {};
+      document.getElementById('identity').value = d.identity || '';
+    }
+  } catch(e) {}
+  while (habits.length < NUM_HABITS) habits.push('');
+  render();
+}
+
+async function save() {
+  try {
+    await window.storage.set('habit-tracker-data', JSON.stringify({
+      habits, completions, identity: document.getElementById('identity').value
+    }));
+  } catch(e) {}
+}
+
+function renderHabits() {
+  const list = document.getElementById('habitsList');
+  list.innerHTML = '';
+  habits.forEach((h, i) => {
+    const streak = currentStreak(i);
+    const row = document.createElement('div');
+    row.className = 'habit-row';
+    row.innerHTML = `
+      <div class="habit-num" style="background:${COLORS[i]}">${i+1}</div>
+      <input class="habit-input" type="text" placeholder="Habit ${i+1} (e.g., Read 2 pages)" value="${h.replace(/"/g,'&quot;')}" data-idx="${i}">
+      <div class="streak"><strong>${streak}</strong>🔥</div>
+    `;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('input', e => {
+      habits[+e.target.dataset.idx] = e.target.value;
+      save();
+    });
+  });
+}
+
+function currentStreak(habitIdx) {
+  let s = 0;
+  for (let d = DAYS; d >= 1; d--) {
+    if (completions[`${habitIdx}-${d}`]) s++;
+    else if (s > 0) break;
+  }
+  // also count from today backward — simpler: longest trailing run
+  let best = 0, cur = 0;
+  for (let d = 1; d <= DAYS; d++) {
+    if (completions[`${habitIdx}-${d}`]) { cur++; best = Math.max(best, cur); }
+    else cur = 0;
+  }
+  return best;
+}
+
+function renderTracker() {
+  const svg = document.getElementById('tracker');
+  const cx = 300, cy = 300;
+  const innerR = 80;
+  const ringW = 22;
+  svg.innerHTML = '';
+
+  // Title arc text not needed; draw paper plane in center
+  const center = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  center.setAttribute('x', cx);
+  center.setAttribute('y', cy + 8);
+  center.setAttribute('text-anchor', 'middle');
+  center.setAttribute('font-size', '40');
+  center.textContent = '✈';
+  center.setAttribute('fill', '#cbd5e0');
+  svg.appendChild(center);
+
+  // 31 days arranged around a circle, leaving a small gap at top
+  const startAngle = -Math.PI / 2 + 0.25; // start just past top
+  const endAngle = -Math.PI / 2 - 0.25 + 2 * Math.PI;
+  const totalAngle = endAngle - startAngle;
+  const dayAngle = totalAngle / DAYS;
+
+  for (let h = 0; h < NUM_HABITS; h++) {
+    const r1 = innerR + h * ringW;
+    const r2 = r1 + ringW - 2;
+    for (let d = 1; d <= DAYS; d++) {
+      const a1 = startAngle + (d - 1) * dayAngle;
+      const a2 = a1 + dayAngle - 0.01;
+      const path = arcPath(cx, cy, r1, r2, a1, a2);
+      const cell = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      cell.setAttribute('d', path);
+      const done = completions[`${h}-${d}`];
+      cell.setAttribute('fill', done ? COLORS[h] : '#f7fafc');
+      cell.setAttribute('stroke', '#e2e8f0');
+      cell.setAttribute('stroke-width', '0.5');
+      cell.setAttribute('class', 'cell');
+      cell.addEventListener('click', () => toggle(h, d));
+      svg.appendChild(cell);
+
+      // day label on outermost ring
+      if (h === NUM_HABITS - 1) {
+        const aMid = (a1 + a2) / 2;
+        const lr = r2 + 12;
+        const lx = cx + lr * Math.cos(aMid);
+        const ly = cy + lr * Math.sin(aMid);
+        const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        txt.setAttribute('x', lx);
+        txt.setAttribute('y', ly);
+        txt.setAttribute('text-anchor', 'middle');
+        txt.setAttribute('dominant-baseline', 'middle');
+        txt.setAttribute('font-size', '10');
+        txt.setAttribute('fill', '#718096');
+        txt.setAttribute('transform', `rotate(${(aMid * 180/Math.PI) + 90} ${lx} ${ly})`);
+        txt.textContent = d;
+        svg.appendChild(txt);
+      }
+    }
+  }
+}
+
+function arcPath(cx, cy, r1, r2, a1, a2) {
+  const x1 = cx + r1 * Math.cos(a1), y1 = cy + r1 * Math.sin(a1);
+  const x2 = cx + r2 * Math.cos(a1), y2 = cy + r2 * Math.sin(a1);
+  const x3 = cx + r2 * Math.cos(a2), y3 = cy + r2 * Math.sin(a2);
+  const x4 = cx + r1 * Math.cos(a2), y4 = cy + r1 * Math.sin(a2);
+  const large = (a2 - a1) > Math.PI ? 1 : 0;
+  return `M ${x1} ${y1} L ${x2} ${y2} A ${r2} ${r2} 0 ${large} 1 ${x3} ${y3} L ${x4} ${y4} A ${r1} ${r1} 0 ${large} 0 ${x1} ${y1} Z`;
+}
+
+function renderLegend() {
+  const l = document.getElementById('legend');
+  l.innerHTML = '';
+  habits.forEach((h, i) => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<div class="legend-dot" style="background:${COLORS[i]}"></div><span>${h || 'Habit ' + (i+1)}</span>`;
+    l.appendChild(item);
+  });
+}
+
+function renderStats() {
+  let total = 0, best = 0;
+  for (let h = 0; h < NUM_HABITS; h++) {
+    best = Math.max(best, currentStreak(h));
+    for (let d = 1; d <= DAYS; d++) if (completions[`${h}-${d}`]) total++;
+  }
+  document.getElementById('totalDone').textContent = total;
+  document.getElementById('bestStreak').textContent = best;
+  document.getElementById('rate').textContent = Math.round(total / (NUM_HABITS * DAYS) * 100) + '%';
+}
+
+function toggle(h, d) {
+  const key = `${h}-${d}`;
+  if (completions[key]) delete completions[key];
+  else completions[key] = true;
+  save();
+  render();
+}
+
+function render() {
+  renderHabits();
+  renderTracker();
+  renderLegend();
+  renderStats();
+}
+
+async function resetAll() {
+  if (!confirm('Reset all habits and progress?')) return;
+  habits = [];
+  completions = {};
+  document.getElementById('identity').value = '';
+  await save();
+  while (habits.length < NUM_HABITS) habits.push('');
+  render();
+}
+
+document.getElementById('identity').addEventListener('input', save);
+load();
+</script>
+</body>
+</html>
